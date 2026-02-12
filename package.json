@@ -1,0 +1,54 @@
+{
+  "name": "macos-control-mcp",
+  "version": "0.0.1",
+  "description": "Give AI agents eyes and hands on macOS — screenshot, OCR, click, type through the Model Context Protocol",
+  "type": "module",
+  "license": "MIT",
+  "author": "Peter Haddad",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/peterhdd/macos-control-mcp.git"
+  },
+  "homepage": "https://github.com/peterhdd/macos-control-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/peterhdd/macos-control-mcp/issues"
+  },
+  "keywords": [
+    "mcp",
+    "macos",
+    "computer-use",
+    "screenshot",
+    "ocr",
+    "automation",
+    "accessibility",
+    "apple-vision",
+    "ai-agent",
+    "model-context-protocol"
+  ],
+  "os": ["darwin"],
+  "engines": {
+    "node": ">=18"
+  },
+  "bin": {
+    "macos-control-mcp": "build/src/index.js"
+  },
+  "files": [
+    "build",
+    "requirements.txt",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start": "node build/src/index.js",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.26.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^22.0.0"
+  }
+}
