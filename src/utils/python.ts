@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn, ChildProcess } from "node:child_process";
 import { promisify } from "node:util";
 import { resolve } from "node:path";
 import { homedir } from "node:os";
@@ -55,14 +55,129 @@ export async function ensurePythonVenv(): Promise<void> {
   }
 }
 
+// ── Persistent Python helper process ────────────────────────────
+
+const HELPER_SCRIPT = `
+import sys, json
+
+# Pre-import heavy frameworks once
+try:
+    import Quartz
+except ImportError:
+    Quartz = None
+try:
+    import Vision
+    from Foundation import NSURL
+except ImportError:
+    Vision = None
+
+# Signal ready via stderr (stdout is reserved for JSON responses)
+sys.stderr.write("__READY__\\n")
+sys.stderr.flush()
+
+# Read-eval loop
+for line in sys.stdin:
+    line = line.strip()
+    if not line:
+        continue
+    try:
+        request = json.loads(line)
+        code = request["code"]
+        # Capture stdout from exec
+        import io
+        buf = io.StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = buf
+        exec(code, {"Quartz": Quartz, "Vision": Vision, "NSURL": NSURL if Vision else None, "json": json})
+        sys.stdout = old_stdout
+        output = buf.getvalue().rstrip("\\n")
+        result = {"ok": True, "output": output}
+    except Exception as e:
+        sys.stdout = sys.__stdout__
+        result = {"ok": False, "error": str(e)}
+    # Write response to stdout
+    sys.__stdout__.write(json.dumps(result) + "\\n")
+    sys.__stdout__.flush()
+`;
+
+let helperProcess: ChildProcess | null = null;
+let helperReady: Promise<void> | null = null;
+
+function startHelper(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn(VENV_PYTHON, ["-u", "-c", HELPER_SCRIPT], {
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+
+    helperProcess = proc;
+
+    proc.on("error", (err) => {
+      helperProcess = null;
+      reject(err);
+    });
+
+    proc.on("exit", () => {
+      helperProcess = null;
+    });
+
+    // Wait for __READY__ signal on stderr
+    const onStderr = (chunk: Buffer) => {
+      const text = chunk.toString();
+      if (text.includes("__READY__")) {
+        proc.stderr?.off("data", onStderr);
+        // Switch to forwarding stderr after ready
+        proc.stderr?.on("data", (c: Buffer) => {
+          console.error(`[python] ${c.toString().trim()}`);
+        });
+        resolve();
+      }
+    };
+    proc.stderr?.on("data", onStderr);
+  });
+}
+
+async function getHelper(): Promise<ChildProcess> {
+  if (helperProcess && helperProcess.exitCode === null) {
+    return helperProcess;
+  }
+  helperReady = startHelper();
+  await helperReady;
+  return helperProcess!;
+}
+
 export async function runPython(
   code: string,
   timeout = 15_000,
 ): Promise<string> {
-  const { stdout } = await execFileAsync(VENV_PYTHON, ["-c", code], {
-    timeout,
+  const proc = await getHelper();
+
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error("Python execution timed out"));
+    }, timeout);
+
+    const onData = (chunk: Buffer) => {
+      const lines = chunk.toString().trim().split("\n");
+      for (const line of lines) {
+        try {
+          const result = JSON.parse(line);
+          clearTimeout(timer);
+          proc.stdout?.off("data", onData);
+          if (result.ok) {
+            resolve(result.output);
+          } else {
+            reject(new Error(result.error));
+          }
+          return;
+        } catch {
+          // Incomplete JSON, wait for more data
+        }
+      }
+    };
+
+    proc.stdout?.on("data", onData);
+    proc.stdin?.write(JSON.stringify({ code }) + "\n");
   });
-  return stdout.trim();
 }
 
 export { VENV_PYTHON };

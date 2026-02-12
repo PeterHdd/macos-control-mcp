@@ -6,10 +6,14 @@ import { runAppleScript, escapeForAppleScript } from "./applescript.js";
 
 const execFileAsync = promisify(execFile);
 
+// Max width for screenshots to keep context size manageable
+const MAX_WIDTH = 1024;
+
 export async function captureScreenshot(
   app?: string,
 ): Promise<{ base64: string; mimeType: string }> {
   const tmpPath = `/tmp/mcp-screenshot-${randomUUID()}.png`;
+  const resizedPath = `/tmp/mcp-screenshot-${randomUUID()}.jpg`;
 
   try {
     if (app) {
@@ -33,9 +37,19 @@ end tell`;
       await execFileAsync("screencapture", ["-x", tmpPath]);
     }
 
-    const buffer = await readFile(tmpPath);
-    return { base64: buffer.toString("base64"), mimeType: "image/png" };
+    // Resize and convert to JPEG to reduce context size (~2MB PNG → ~100KB JPEG)
+    await execFileAsync("sips", [
+      "--resampleWidth", String(MAX_WIDTH),
+      "--setProperty", "format", "jpeg",
+      "--setProperty", "formatOptions", "60",
+      tmpPath,
+      "--out", resizedPath,
+    ]);
+
+    const buffer = await readFile(resizedPath);
+    return { base64: buffer.toString("base64"), mimeType: "image/jpeg" };
   } finally {
     await unlink(tmpPath).catch(() => {});
+    await unlink(resizedPath).catch(() => {});
   }
 }
