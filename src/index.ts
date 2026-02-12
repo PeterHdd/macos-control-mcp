@@ -12,6 +12,7 @@ import { launchApp, listRunningApps } from "./tools/apps.js";
 import { getUIElements, clickElement } from "./tools/ui.js";
 import { openUrl } from "./tools/browser.js";
 import { getClipboard, setClipboard } from "./tools/clipboard.js";
+import { executeJavaScript, getPageText, clickWebElement, fillFormField } from "./tools/webjs.js";
 import { ensurePythonVenv } from "./utils/python.js";
 
 const server = new McpServer({
@@ -269,6 +270,74 @@ server.tool(
   async ({ text }) => {
     try {
       const result = await setClipboard(text);
+      return { content: [{ type: "text", text: result }] };
+    } catch (err: unknown) {
+      return { isError: true, content: [{ type: "text", text: String(err) }] };
+    }
+  },
+);
+
+// ── Browser automation ───────────────────────────────────────────
+
+server.tool(
+  "execute_javascript",
+  "Run JavaScript in the active browser tab. Much faster than screenshot+OCR for web pages. Returns the result.",
+  {
+    code: z.string().describe("JavaScript code to execute"),
+    browser: z.string().optional().describe("'safari' or 'chrome' (defaults to Safari)"),
+  },
+  async ({ code, browser }) => {
+    try {
+      const result = await executeJavaScript(code, browser);
+      return { content: [{ type: "text", text: result }] };
+    } catch (err: unknown) {
+      return { isError: true, content: [{ type: "text", text: String(err) }] };
+    }
+  },
+);
+
+server.tool(
+  "get_page_text",
+  "Get all visible text from the current browser page. Faster than OCR for web content.",
+  { browser: z.string().optional().describe("'safari' or 'chrome' (defaults to Safari)") },
+  async ({ browser }) => {
+    try {
+      const result = await getPageText(browser);
+      return { content: [{ type: "text", text: result }] };
+    } catch (err: unknown) {
+      return { isError: true, content: [{ type: "text", text: String(err) }] };
+    }
+  },
+);
+
+server.tool(
+  "click_web_element",
+  "Click an element on the current browser page by CSS selector. Precise and instant — no coordinates needed.",
+  {
+    selector: z.string().describe("CSS selector (e.g. '#submit', '.btn-primary', 'button[aria-label=\"Easy Apply\"]')"),
+    browser: z.string().optional().describe("'safari' or 'chrome' (defaults to Safari)"),
+  },
+  async ({ selector, browser }) => {
+    try {
+      const result = await clickWebElement(selector, browser);
+      return { content: [{ type: "text", text: result }] };
+    } catch (err: unknown) {
+      return { isError: true, content: [{ type: "text", text: String(err) }] };
+    }
+  },
+);
+
+server.tool(
+  "fill_form_field",
+  "Fill a form field on the current browser page by CSS selector. Handles input, textarea, and select elements.",
+  {
+    selector: z.string().describe("CSS selector for the field (e.g. '#email', '[name=\"username\"]')"),
+    value: z.string().describe("Value to fill in"),
+    browser: z.string().optional().describe("'safari' or 'chrome' (defaults to Safari)"),
+  },
+  async ({ selector, value, browser }) => {
+    try {
+      const result = await fillFormField(selector, value, browser);
       return { content: [{ type: "text", text: result }] };
     } catch (err: unknown) {
       return { isError: true, content: [{ type: "text", text: String(err) }] };

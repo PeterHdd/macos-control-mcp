@@ -146,13 +146,13 @@ macOS requires two permissions for full functionality:
 
 Go to **System Settings → Privacy & Security** and add your terminal app (Terminal, iTerm2, VS Code, etc.) to both lists. You'll be prompted on first use.
 
-## Tools (15)
+## Tools (19)
 
 ### See the screen
 
 | Tool | Description |
 |---|---|
-| `screenshot` | Capture full screen or app window as PNG |
+| `screenshot` | Capture full screen or app window as JPEG |
 | `screen_ocr` | OCR the screen — returns text elements with pixel coordinates |
 | `find_text_on_screen` | Find specific text and get clickable x,y coordinates |
 
@@ -179,6 +179,15 @@ Go to **System Settings → Privacy & Security** and add your terminal app (Term
 |---|---|
 | `get_ui_elements` | Get accessibility tree of an app window |
 | `click_element` | Click a named UI element (returns screenshot) |
+
+### Browser automation
+
+| Tool | Description |
+|---|---|
+| `execute_javascript` | Run JavaScript in the active browser tab |
+| `get_page_text` | Get all visible text from the page (faster than OCR) |
+| `click_web_element` | Click element by CSS selector (instant, precise) |
+| `fill_form_field` | Fill a form field by CSS selector |
 
 ### Utilities
 
