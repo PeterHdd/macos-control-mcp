@@ -18,7 +18,7 @@ import { ensurePythonVenv } from "./utils/python.js";
 
 const server = new McpServer({
   name: "macos-control",
-  version: "0.0.5",
+  version: "0.0.6",
 });
 
 // ── See the screen ──────────────────────────────────────────────
