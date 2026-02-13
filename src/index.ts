@@ -12,7 +12,7 @@ import { launchApp, listRunningApps } from "./tools/apps.js";
 import { getUIElements, clickElement } from "./tools/ui.js";
 import { openUrl } from "./tools/browser.js";
 import { getClipboard, setClipboard } from "./tools/clipboard.js";
-import { executeJavaScript, getPageText, clickWebElement, fillFormField } from "./tools/webjs.js";
+import { executeJavaScript, getPageText, getPageElements, clickByText, fillByLabel, selectOption } from "./tools/webjs.js";
 import { batchActions } from "./tools/batch.js";
 import { ensurePythonVenv, warmupPythonHelper } from "./utils/python.js";
 
@@ -316,15 +316,12 @@ server.tool(
 );
 
 server.tool(
-  "click_web_element",
-  "Click an element on the current browser page by CSS selector. Precise and instant — no coordinates needed.",
-  {
-    selector: z.string().describe("CSS selector (e.g. '#submit', '.btn-primary', 'button[aria-label=\"Easy Apply\"]')"),
-    browser: z.string().optional().describe("'safari' or 'chrome' (defaults to Safari)"),
-  },
-  async ({ selector, browser }) => {
+  "get_page_elements",
+  "Get all interactive elements (buttons, inputs, selects, radios, checkboxes, links) from the current browser page. Returns structured text showing each element's type, label, value, and state. Use this instead of screenshot+OCR to understand web page content. Then use click_by_text or fill_by_label to interact.",
+  { browser: z.string().optional().describe("'safari' or 'chrome' (defaults to Safari)") },
+  async ({ browser }) => {
     try {
-      const result = await clickWebElement(selector, browser);
+      const result = await getPageElements(browser);
       return { content: [{ type: "text", text: result }] };
     } catch (err: unknown) {
       return { isError: true, content: [{ type: "text", text: String(err) }] };
@@ -333,16 +330,53 @@ server.tool(
 );
 
 server.tool(
-  "fill_form_field",
-  "Fill a form field on the current browser page by CSS selector. Handles input, textarea, and select elements.",
+  "click_by_text",
+  "Click a button, link, tab, radio, or checkbox by its visible text. Much more reliable than coordinate clicking. Scrolls element into view before clicking.",
   {
-    selector: z.string().describe("CSS selector for the field (e.g. '#email', '[name=\"username\"]')"),
+    text: z.string().describe("Visible text to search for (case-insensitive partial match)"),
+    element_type: z.enum(["button", "link", "tab", "radio", "checkbox", "any"]).optional().describe("Type of element to click (default: 'any')"),
+    index: z.number().optional().describe("Which match to click if multiple found (0-based, default: 0)"),
+    browser: z.string().optional().describe("'safari' or 'chrome' (defaults to Safari)"),
+  },
+  async ({ text, element_type, index, browser }) => {
+    try {
+      const result = await clickByText(text, element_type, index, browser);
+      return { content: [{ type: "text", text: result }] };
+    } catch (err: unknown) {
+      return { isError: true, content: [{ type: "text", text: String(err) }] };
+    }
+  },
+);
+
+server.tool(
+  "fill_by_label",
+  "Fill a form field by its label text. Finds the input/textarea associated with the label and fills it. Works with React/Vue/Angular apps. On failure, lists available field labels for debugging.",
+  {
+    label: z.string().describe("Label text of the field (case-insensitive partial match)"),
     value: z.string().describe("Value to fill in"),
     browser: z.string().optional().describe("'safari' or 'chrome' (defaults to Safari)"),
   },
-  async ({ selector, value, browser }) => {
+  async ({ label, value, browser }) => {
     try {
-      const result = await fillFormField(selector, value, browser);
+      const result = await fillByLabel(label, value, browser);
+      return { content: [{ type: "text", text: result }] };
+    } catch (err: unknown) {
+      return { isError: true, content: [{ type: "text", text: String(err) }] };
+    }
+  },
+);
+
+server.tool(
+  "select_option",
+  "Select a dropdown option by the dropdown's label and the option text. On failure, lists available options for debugging.",
+  {
+    label: z.string().describe("Label text of the select/dropdown (case-insensitive partial match)"),
+    option: z.string().describe("Option text to select (case-insensitive partial match)"),
+    browser: z.string().optional().describe("'safari' or 'chrome' (defaults to Safari)"),
+  },
+  async ({ label, option, browser }) => {
+    try {
+      const result = await selectOption(label, option, browser);
       return { content: [{ type: "text", text: result }] };
     } catch (err: unknown) {
       return { isError: true, content: [{ type: "text", text: String(err) }] };
@@ -363,8 +397,9 @@ const batchActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("open_url"), url: z.string(), browser: z.string().optional() }),
   z.object({ action: z.literal("set_clipboard"), text: z.string() }),
   z.object({ action: z.literal("execute_javascript"), code: z.string(), browser: z.string().optional() }),
-  z.object({ action: z.literal("click_web_element"), selector: z.string(), browser: z.string().optional() }),
-  z.object({ action: z.literal("fill_form_field"), selector: z.string(), value: z.string(), browser: z.string().optional() }),
+  z.object({ action: z.literal("click_text"), text: z.string(), element_type: z.string().optional(), index: z.number().optional(), browser: z.string().optional() }),
+  z.object({ action: z.literal("fill_label"), label: z.string(), value: z.string(), browser: z.string().optional() }),
+  z.object({ action: z.literal("select_option"), label: z.string(), option: z.string(), browser: z.string().optional() }),
 ]);
 
 server.tool(

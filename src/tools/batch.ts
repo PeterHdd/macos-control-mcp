@@ -5,7 +5,7 @@ import { launchApp, focusApp } from "./apps.js";
 import { clickElement } from "./ui.js";
 import { openUrl } from "./browser.js";
 import { setClipboard } from "./clipboard.js";
-import { executeJavaScript, clickWebElement, fillFormField } from "./webjs.js";
+import { executeJavaScript, clickByText, fillByLabel, selectOption } from "./webjs.js";
 
 export type BatchAction =
   | { action: "click"; x: number; y: number }
@@ -18,8 +18,9 @@ export type BatchAction =
   | { action: "open_url"; url: string; browser?: string }
   | { action: "set_clipboard"; text: string }
   | { action: "execute_javascript"; code: string; browser?: string }
-  | { action: "click_web_element"; selector: string; browser?: string }
-  | { action: "fill_form_field"; selector: string; value: string; browser?: string };
+  | { action: "click_text"; text: string; element_type?: string; index?: number; browser?: string }
+  | { action: "fill_label"; label: string; value: string; browser?: string }
+  | { action: "select_option"; label: string; option: string; browser?: string };
 
 async function executeAction(action: BatchAction): Promise<string> {
   switch (action.action) {
@@ -49,10 +50,12 @@ async function executeAction(action: BatchAction): Promise<string> {
       return setClipboard(action.text);
     case "execute_javascript":
       return executeJavaScript(action.code, action.browser);
-    case "click_web_element":
-      return clickWebElement(action.selector, action.browser);
-    case "fill_form_field":
-      return fillFormField(action.selector, action.value, action.browser);
+    case "click_text":
+      return clickByText(action.text, action.element_type, action.index, action.browser);
+    case "fill_label":
+      return fillByLabel(action.label, action.value, action.browser);
+    case "select_option":
+      return selectOption(action.label, action.option, action.browser);
   }
 }
 
