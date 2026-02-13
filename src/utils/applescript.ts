@@ -1,7 +1,4 @@
-import { execFile, spawn, ChildProcess } from "node:child_process";
-import { promisify } from "node:util";
-
-const execFileAsync = promisify(execFile);
+import { spawn } from "node:child_process";
 
 const TIMEOUT_MS = 10_000;
 
@@ -53,40 +50,14 @@ export function escapeForAppleScript(str: string): string {
     .replace(/\n/g, "\\n");
 }
 
-// ── Persistent osascript helper ─────────────────────────────────
-
-const SENTINEL = "__OSASCRIPT_DONE__";
-// Use a unique sentinel per request to avoid cross-talk
-let requestId = 0;
-
-let osaProcess: ChildProcess | null = null;
-
-function getOsascriptProcess(): ChildProcess {
-  if (osaProcess && osaProcess.exitCode === null) {
-    return osaProcess;
-  }
-  // Launch osascript in interactive mode reading from stdin
-  // -s s = keep output as human-readable strings
-  osaProcess = spawn("osascript", ["-s", "s", "-"], {
-    stdio: ["pipe", "pipe", "pipe"],
-  });
-  osaProcess.on("exit", () => {
-    osaProcess = null;
-  });
-  return osaProcess;
-}
-
 export async function runAppleScript(script: string): Promise<string> {
-  const proc = getOsascriptProcess();
-  const id = ++requestId;
-  const sentinel = `${SENTINEL}_${id}`;
-
   return new Promise((resolve, reject) => {
+    const proc = spawn("osascript", ["-s", "s"], {
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+
     const timer = setTimeout(() => {
-      cleanup();
-      // Kill and restart the process on timeout
       proc.kill();
-      osaProcess = null;
       reject(
         new AppleScriptError(
           "AppleScript timed out after 10 seconds.",
@@ -98,59 +69,26 @@ export async function runAppleScript(script: string): Promise<string> {
     let stdoutBuf = "";
     let stderrBuf = "";
 
-    const onStdout = (chunk: Buffer) => {
+    proc.stdout.on("data", (chunk: Buffer) => {
       stdoutBuf += chunk.toString();
-      // Check if we've received our sentinel marker
-      const sentinelIdx = stdoutBuf.indexOf(sentinel);
-      if (sentinelIdx !== -1) {
-        cleanup();
-        // Everything before the sentinel is the actual output
-        const output = stdoutBuf.slice(0, sentinelIdx).trim();
-        if (stderrBuf.trim()) {
-          reject(classifyError(stderrBuf));
-        } else {
-          resolve(output);
-        }
-      }
-    };
-
-    const onStderr = (chunk: Buffer) => {
-      stderrBuf += chunk.toString();
-    };
-
-    const cleanup = () => {
-      clearTimeout(timer);
-      proc.stdout?.off("data", onStdout);
-      proc.stderr?.off("data", onStderr);
-    };
-
-    proc.stdout?.on("data", onStdout);
-    proc.stderr?.on("data", onStderr);
-
-    // Send the script followed by a sentinel log so we know when output is done
-    const wrappedScript = `${script}\nlog "${sentinel}"\n`;
-    proc.stdin?.write(wrappedScript);
-  });
-}
-
-// Fallback: run with execFile for cases where persistent process doesn't work
-export async function runAppleScriptOnce(script: string): Promise<string> {
-  try {
-    const { stdout } = await execFileAsync("osascript", ["-e", script], {
-      timeout: TIMEOUT_MS,
     });
-    return stdout.trim();
-  } catch (err: unknown) {
-    const error = err as { killed?: boolean; stderr?: string; message?: string };
 
-    if (error.killed) {
-      throw new AppleScriptError(
-        "AppleScript timed out after 10 seconds.",
-        "timeout",
-      );
-    }
+    proc.stderr.on("data", (chunk: Buffer) => {
+      stderrBuf += chunk.toString();
+    });
 
-    const stderr = error.stderr || error.message || "Unknown error";
-    throw classifyError(stderr);
-  }
+    proc.on("close", () => {
+      clearTimeout(timer);
+      const output = stdoutBuf.trim();
+      const errOutput = stderrBuf.trim();
+      if (errOutput) {
+        reject(classifyError(errOutput));
+      } else {
+        resolve(output);
+      }
+    });
+
+    proc.stdin.write(script);
+    proc.stdin.end();
+  });
 }
