@@ -14,7 +14,7 @@ import { openUrl } from "./tools/browser.js";
 import { getClipboard, setClipboard } from "./tools/clipboard.js";
 import { executeJavaScript, getPageText, clickWebElement, fillFormField } from "./tools/webjs.js";
 import { batchActions } from "./tools/batch.js";
-import { ensurePythonVenv } from "./utils/python.js";
+import { ensurePythonVenv, warmupPythonHelper } from "./utils/python.js";
 
 const server = new McpServer({
   name: "macos-control",
@@ -72,7 +72,7 @@ server.tool(
 
 server.tool(
   "click_at",
-  "Click at x,y screen coordinates. Returns a screenshot after clicking. Use screenshot + screen_ocr to find coordinates first.",
+  "Click at x,y screen coordinates. Returns a screenshot after clicking. Use screenshot + screen_ocr to find coordinates first. Prefer batch_actions when combining with other actions.",
   {
     x: z.number().describe("X coordinate"),
     y: z.number().describe("Y coordinate"),
@@ -94,7 +94,7 @@ server.tool(
 
 server.tool(
   "double_click_at",
-  "Double-click at x,y screen coordinates. Returns a screenshot after clicking.",
+  "Double-click at x,y screen coordinates. Returns a screenshot after clicking. Prefer batch_actions when combining with other actions.",
   {
     x: z.number().describe("X coordinate"),
     y: z.number().describe("Y coordinate"),
@@ -116,7 +116,7 @@ server.tool(
 
 server.tool(
   "type_text",
-  "Type text into the frontmost app using keyboard input.",
+  "Type text into the frontmost app using keyboard input. Prefer batch_actions when combining with other actions.",
   { text: z.string().describe("Text to type") },
   async ({ text }) => {
     try {
@@ -130,7 +130,7 @@ server.tool(
 
 server.tool(
   "press_key",
-  "Press a key combo (e.g. press 's' with ['command'] for Cmd+S). Supports a-z, 0-9, return, tab, space, delete, escape, arrows, f1-f12.",
+  "Press a key combo (e.g. press 's' with ['command'] for Cmd+S). Supports a-z, 0-9, return, tab, space, delete, escape, arrows, f1-f12. Prefer batch_actions when combining with other actions.",
   {
     key: z.string().describe("Key name: a-z, 0-9, return, tab, space, delete, escape, up/down/left/right, f1-f12"),
     modifiers: z
@@ -150,7 +150,7 @@ server.tool(
 
 server.tool(
   "scroll",
-  "Scroll in the frontmost application.",
+  "Scroll in the frontmost application. Prefer batch_actions when combining with other actions.",
   {
     direction: z.enum(["up", "down", "left", "right"]).describe("Scroll direction"),
     amount: z.number().default(3).describe("Number of lines to scroll (default 3)"),
@@ -169,7 +169,7 @@ server.tool(
 
 server.tool(
   "launch_app",
-  "Open or focus a macOS application by name.",
+  "Open or focus a macOS application by name. Prefer batch_actions when combining with other actions.",
   { name: z.string().describe("Application name, e.g. 'Safari', 'Notes'") },
   async ({ name }) => {
     try {
@@ -212,7 +212,7 @@ server.tool(
 
 server.tool(
   "click_element",
-  "Click a named UI element in an app window. Returns a screenshot after clicking. Use get_ui_elements to discover element names.",
+  "Click a named UI element in an app window. Returns a screenshot after clicking. Use get_ui_elements to discover element names. Prefer batch_actions when combining with other actions.",
   {
     app: z.string().describe("Application process name"),
     name: z.string().describe("Name of the UI element to click"),
@@ -394,6 +394,8 @@ async function main() {
   await ensurePythonVenv();
   const transport = new StdioServerTransport();
   await server.connect(transport);
+  // Pre-warm Python helper in background so first OCR/click doesn't pay startup cost
+  warmupPythonHelper();
 }
 
 main().catch((err) => {

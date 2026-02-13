@@ -31,7 +31,7 @@ Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
     return { text };
   }
 
-  await new Promise((r) => setTimeout(r, 300));
+  await new Promise((r) => setTimeout(r, 100));
   const screenshot = await captureScreenshot();
   return { text, screenshot };
 }
@@ -74,7 +74,7 @@ Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
     return { text };
   }
 
-  await new Promise((r) => setTimeout(r, 300));
+  await new Promise((r) => setTimeout(r, 100));
   const screenshot = await captureScreenshot();
   return { text, screenshot };
 }

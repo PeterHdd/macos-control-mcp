@@ -6,19 +6,14 @@ import { runAppleScript, escapeForAppleScript } from "./applescript.js";
 
 const execFileAsync = promisify(execFile);
 
-// Max width for screenshots to keep context size manageable
-const MAX_WIDTH = 1024;
-
 export async function captureScreenshot(
   app?: string,
 ): Promise<{ base64: string; mimeType: string }> {
-  const tmpPath = `/tmp/mcp-screenshot-${randomUUID()}.png`;
-  const resizedPath = `/tmp/mcp-screenshot-${randomUUID()}.jpg`;
+  const tmpPath = `/tmp/mcp-screenshot-${randomUUID()}.jpg`;
 
   try {
     if (app) {
       const safeApp = escapeForAppleScript(app);
-      // Get window bounds via System Events
       const boundsScript = `
 tell application "System Events"
   tell process "${safeApp}"
@@ -32,24 +27,22 @@ tell application "System Events"
   end tell
 end tell`;
       const bounds = await runAppleScript(boundsScript);
-      await execFileAsync("screencapture", ["-R", bounds, "-x", tmpPath]);
+      // Capture directly as JPEG (-t jpg) with no sounds (-x)
+      await execFileAsync("screencapture", ["-R", bounds, "-x", "-t", "jpg", tmpPath]);
     } else {
-      await execFileAsync("screencapture", ["-x", tmpPath]);
+      await execFileAsync("screencapture", ["-x", "-t", "jpg", tmpPath]);
     }
 
-    // Resize and convert to JPEG to reduce context size (~2MB PNG → ~100KB JPEG)
+    // Resize to keep context size manageable — sips in-place on JPEG (no format conversion needed)
     await execFileAsync("sips", [
-      "--resampleWidth", String(MAX_WIDTH),
-      "--setProperty", "format", "jpeg",
+      "--resampleWidth", "1024",
       "--setProperty", "formatOptions", "60",
       tmpPath,
-      "--out", resizedPath,
     ]);
 
-    const buffer = await readFile(resizedPath);
+    const buffer = await readFile(tmpPath);
     return { base64: buffer.toString("base64"), mimeType: "image/jpeg" };
   } finally {
     await unlink(tmpPath).catch(() => {});
-    await unlink(resizedPath).catch(() => {});
   }
 }

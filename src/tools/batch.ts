@@ -96,7 +96,7 @@ export async function batchActions(
   }
 
   // Wait for UI to settle, then capture final screenshot
-  await new Promise((r) => setTimeout(r, 300));
+  await new Promise((r) => setTimeout(r, 100));
   const screenshot = await captureScreenshot();
 
   return {

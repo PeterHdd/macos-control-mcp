@@ -71,46 +71,32 @@ export async function clickElement(
   const safeApp = escapeForAppleScript(app);
   const safeName = escapeForAppleScript(elementName);
 
-  // Strategy 1: Try direct click on common UI element types in window 1
-  const directScript = `
+  // Single-pass: try direct types first, then deep search — all in one osascript call
+  const script = `
 tell application "System Events"
   tell process "${safeApp}"
-    -- Try button first
+    -- Direct click on common UI element types
     try
       click button "${safeName}" of window 1
       return "clicked"
     end try
-    -- Try menu button
     try
       click menu button "${safeName}" of window 1
       return "clicked"
     end try
-    -- Try checkbox
     try
       click checkbox "${safeName}" of window 1
       return "clicked"
     end try
-    -- Try radio button
     try
       click radio button "${safeName}" of window 1
       return "clicked"
     end try
-    -- Try static text (clickable labels)
     try
       click static text "${safeName}" of window 1
       return "clicked"
     end try
-    return "not_found"
-  end tell
-end tell`;
-
-  let result = await runAppleScript(directScript);
-
-  if (result === "not_found") {
-    // Strategy 2: Search deeper — look inside groups and toolbar
-    const deepScript = `
-tell application "System Events"
-  tell process "${safeApp}"
+    -- Deep search: generic UI element match
     try
       click (first UI element whose name is "${safeName}") of window 1
       return "clicked"
@@ -142,8 +128,7 @@ tell application "System Events"
   end tell
 end tell`;
 
-    result = await runAppleScript(deepScript);
-  }
+  const result = await runAppleScript(script);
 
   if (result === "not_found") {
     throw new Error(
@@ -158,7 +143,7 @@ end tell`;
   }
 
   // Small delay for UI to update, then screenshot
-  await new Promise((r) => setTimeout(r, 300));
+  await new Promise((r) => setTimeout(r, 100));
   const screenshot = await captureScreenshot(app);
   return { text, screenshot };
 }

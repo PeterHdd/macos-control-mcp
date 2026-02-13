@@ -9,8 +9,15 @@ async function openApp(name: string): Promise<void> {
 }
 
 export async function launchApp(name: string): Promise<string> {
+  const safe = escapeForAppleScript(name);
+  const wasRunning = await runAppleScript(
+    `tell application "System Events" to (name of every application process whose background only is false) contains "${safe}"`,
+  );
   await openApp(name);
-  return `Launched "${name}".`;
+  if (wasRunning.trim() === "true") {
+    return `Activated "${name}" (was already running).`;
+  }
+  return `Launched "${name}" (freshly opened). Note: document-based apps like TextEdit and Notes auto-create a new document on launch, so Cmd+N is not needed.`;
 }
 
 export async function quitApp(name: string): Promise<string> {

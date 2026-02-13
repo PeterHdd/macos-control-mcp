@@ -79,8 +79,8 @@ from Foundation import NSURL
 
 url = NSURL.fileURLWithPath_("${tmpPath}")
 request = Vision.VNRecognizeTextRequest.alloc().init()
-request.setRecognitionLevel_(1)  # accurate
-request.setUsesLanguageCorrection_(True)
+request.setRecognitionLevel_(0)  # fast
+request.setUsesLanguageCorrection_(False)
 handler = Vision.VNImageRequestHandler.alloc().initWithURL_options_(url, None)
 success = handler.performRequests_error_([request], None)
 

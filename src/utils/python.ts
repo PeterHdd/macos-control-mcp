@@ -181,3 +181,12 @@ export async function runPython(
 }
 
 export { VENV_PYTHON };
+
+/** Pre-start the helper so first Python call doesn't pay startup cost */
+export async function warmupPythonHelper(): Promise<void> {
+  try {
+    await getHelper();
+  } catch {
+    // Non-fatal — helper will start on first use
+  }
+}
