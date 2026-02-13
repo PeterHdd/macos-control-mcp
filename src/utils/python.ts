@@ -153,26 +153,36 @@ export async function runPython(
 
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
+      cleanup();
       reject(new Error("Python execution timed out"));
     }, timeout);
 
+    let buf = "";
+
     const onData = (chunk: Buffer) => {
-      const lines = chunk.toString().trim().split("\n");
-      for (const line of lines) {
-        try {
-          const result = JSON.parse(line);
-          clearTimeout(timer);
-          proc.stdout?.off("data", onData);
-          if (result.ok) {
-            resolve(result.output);
-          } else {
-            reject(new Error(result.error));
-          }
-          return;
-        } catch {
-          // Incomplete JSON, wait for more data
+      buf += chunk.toString();
+      // Response is newline-delimited JSON — only try parsing once we have a full line
+      const nlIdx = buf.indexOf("\n");
+      if (nlIdx === -1) return;
+
+      const line = buf.slice(0, nlIdx);
+      try {
+        const result = JSON.parse(line);
+        cleanup();
+        if (result.ok) {
+          resolve(result.output);
+        } else {
+          reject(new Error(result.error));
         }
+      } catch {
+        // Malformed JSON on a complete line — discard and keep waiting
+        buf = buf.slice(nlIdx + 1);
       }
+    };
+
+    const cleanup = () => {
+      clearTimeout(timer);
+      proc.stdout?.off("data", onData);
     };
 
     proc.stdout?.on("data", onData);
