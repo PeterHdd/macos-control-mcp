@@ -53,10 +53,21 @@ end tell`;
   return JSON.stringify(result, null, 2);
 }
 
+// Overloads: without skipScreenshot, screenshot is always present
 export async function clickElement(
   app: string,
   elementName: string,
-): Promise<{ text: string; screenshot: { base64: string; mimeType: string } }> {
+): Promise<{ text: string; screenshot: { base64: string; mimeType: string } }>;
+export async function clickElement(
+  app: string,
+  elementName: string,
+  options: { skipScreenshot: true },
+): Promise<{ text: string }>;
+export async function clickElement(
+  app: string,
+  elementName: string,
+  options?: { skipScreenshot?: boolean },
+): Promise<{ text: string; screenshot?: { base64: string; mimeType: string } }> {
   const safeApp = escapeForAppleScript(app);
   const safeName = escapeForAppleScript(elementName);
 
@@ -140,12 +151,14 @@ end tell`;
     );
   }
 
+  const text = `Clicked "${elementName}" in "${app}".`;
+
+  if (options?.skipScreenshot) {
+    return { text };
+  }
+
   // Small delay for UI to update, then screenshot
   await new Promise((r) => setTimeout(r, 300));
   const screenshot = await captureScreenshot(app);
-
-  return {
-    text: `Clicked "${elementName}" in "${app}".`,
-    screenshot,
-  };
+  return { text, screenshot };
 }

@@ -13,6 +13,7 @@ import { getUIElements, clickElement } from "./tools/ui.js";
 import { openUrl } from "./tools/browser.js";
 import { getClipboard, setClipboard } from "./tools/clipboard.js";
 import { executeJavaScript, getPageText, clickWebElement, fillFormField } from "./tools/webjs.js";
+import { batchActions } from "./tools/batch.js";
 import { ensurePythonVenv } from "./utils/python.js";
 
 const server = new McpServer({
@@ -339,6 +340,45 @@ server.tool(
     try {
       const result = await fillFormField(selector, value, browser);
       return { content: [{ type: "text", text: result }] };
+    } catch (err: unknown) {
+      return { isError: true, content: [{ type: "text", text: String(err) }] };
+    }
+  },
+);
+
+// ── Batch actions ───────────────────────────────────────────────
+
+const batchActionSchema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("click"), x: z.number(), y: z.number() }),
+  z.object({ action: z.literal("double_click"), x: z.number(), y: z.number() }),
+  z.object({ action: z.literal("click_element"), app: z.string(), name: z.string() }),
+  z.object({ action: z.literal("type"), text: z.string() }),
+  z.object({ action: z.literal("key"), key: z.string(), modifiers: z.array(z.string()).optional() }),
+  z.object({ action: z.literal("scroll"), direction: z.enum(["up", "down", "left", "right"]), amount: z.number().optional() }),
+  z.object({ action: z.literal("launch_app"), name: z.string() }),
+  z.object({ action: z.literal("open_url"), url: z.string(), browser: z.string().optional() }),
+  z.object({ action: z.literal("set_clipboard"), text: z.string() }),
+  z.object({ action: z.literal("execute_javascript"), code: z.string(), browser: z.string().optional() }),
+  z.object({ action: z.literal("click_web_element"), selector: z.string(), browser: z.string().optional() }),
+  z.object({ action: z.literal("fill_form_field"), selector: z.string(), value: z.string(), browser: z.string().optional() }),
+]);
+
+server.tool(
+  "batch_actions",
+  "Execute multiple actions in sequence and return a single screenshot at the end. Much faster than individual tool calls for multi-step tasks. Stops on first error. Max 20 actions per call.",
+  {
+    actions: z.array(batchActionSchema).min(1).max(20).describe("Array of actions to execute sequentially"),
+    delay_between_ms: z.number().optional().describe("Delay between actions in ms (default 100)"),
+  },
+  async ({ actions, delay_between_ms }) => {
+    try {
+      const { result, screenshot } = await batchActions(actions, delay_between_ms);
+      return {
+        content: [
+          { type: "text", text: JSON.stringify(result, null, 2) },
+          { type: "image", data: screenshot.base64, mimeType: screenshot.mimeType },
+        ],
+      };
     } catch (err: unknown) {
       return { isError: true, content: [{ type: "text", text: String(err) }] };
     }
