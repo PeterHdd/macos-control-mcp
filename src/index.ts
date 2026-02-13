@@ -18,7 +18,7 @@ import { ensurePythonVenv, warmupPythonHelper } from "./utils/python.js";
 
 const server = new McpServer({
   name: "macos-control",
-  version: "0.0.10",
+  version: "0.0.11",
 });
 
 // ── See the screen ──────────────────────────────────────────────
