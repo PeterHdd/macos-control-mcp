@@ -365,7 +365,10 @@ const batchActionSchema = z.discriminatedUnion("action", [
 
 server.tool(
   "batch_actions",
-  "Execute multiple actions in sequence and return a single screenshot at the end. Much faster than individual tool calls for multi-step tasks. Stops on first error. Max 20 actions per call.",
+  `PREFERRED: Always use this tool instead of calling individual action tools (click_at, type_text, press_key, launch_app, etc.) one at a time. Combine multiple steps into a single batch call — this is dramatically faster. Only use individual tools when you need to read the result of one action before deciding the next. Returns a single screenshot at the end. Stops on first error. Max 20 actions per call.
+
+Example — open Notes and write text (1 call instead of 6):
+  [{ "action": "launch_app", "name": "Notes" }, { "action": "key", "key": "n", "modifiers": ["command"] }, { "action": "set_clipboard", "text": "Hello\\nWorld" }, { "action": "key", "key": "v", "modifiers": ["command"] }]`,
   {
     actions: z.array(batchActionSchema).min(1).max(20).describe("Array of actions to execute sequentially"),
     delay_between_ms: z.number().optional().describe("Delay between actions in ms (default 100)"),

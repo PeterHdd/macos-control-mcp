@@ -58,10 +58,25 @@ const MODIFIER_MAP: Record<string, string> = {
 };
 
 export async function typeText(text: string): Promise<string> {
-  const safe = escapeForAppleScript(text);
-  await runAppleScript(
-    `tell application "System Events" to keystroke "${safe}"`,
-  );
+  // Split on newlines so we can press Return between segments,
+  // since AppleScript's keystroke doesn't interpret \n as newline.
+  const lines = text.split("\n");
+
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].length > 0) {
+      const safe = escapeForAppleScript(lines[i]);
+      await runAppleScript(
+        `tell application "System Events" to keystroke "${safe}"`,
+      );
+    }
+    // Press Return between lines (not after the last one)
+    if (i < lines.length - 1) {
+      await runAppleScript(
+        `tell application "System Events" to key code 36`,
+      );
+    }
+  }
+
   return `Typed "${text}".`;
 }
 
