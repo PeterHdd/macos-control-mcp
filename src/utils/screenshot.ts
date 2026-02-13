@@ -27,8 +27,22 @@ tell application "System Events"
   end tell
 end tell`;
       const bounds = await runAppleScript(boundsScript);
-      // Capture directly as JPEG (-t jpg) with no sounds (-x)
-      await execFileAsync("screencapture", ["-R", bounds, "-x", "-t", "jpg", tmpPath]);
+      // Validate bounds format: "x,y,w,h" with numeric values and positive dimensions
+      const parts = bounds.split(",").map((p) => p.trim());
+      const nums = parts.map(Number);
+      if (
+        parts.length === 4 &&
+        nums.every((n) => !isNaN(n)) &&
+        nums[2] > 0 &&
+        nums[3] > 0
+      ) {
+        await execFileAsync("screencapture", [
+          "-R", nums.join(","), "-x", "-t", "jpg", tmpPath,
+        ]);
+      } else {
+        // Invalid bounds — fall back to full-screen capture
+        await execFileAsync("screencapture", ["-x", "-t", "jpg", tmpPath]);
+      }
     } else {
       await execFileAsync("screencapture", ["-x", "-t", "jpg", tmpPath]);
     }

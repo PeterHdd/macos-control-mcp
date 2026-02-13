@@ -8,7 +8,13 @@ function detectBrowser(browser?: string): Browser {
 }
 
 function buildJsScript(browser: Browser, code: string): string {
-  const safeCode = escapeForAppleScript(code);
+  let jsCode = code;
+  // Chrome's AppleScript bridge evals code at top-level where `return` is invalid.
+  // Wrap in IIFE when code contains return statements so const/let/return all work.
+  if (browser === "Google Chrome" && /\breturn\b/.test(code)) {
+    jsCode = `(function(){${code}})()`;
+  }
+  const safeCode = escapeForAppleScript(jsCode);
   if (browser === "Google Chrome") {
     return `tell application "Google Chrome" to execute active tab of front window javascript "${safeCode}"`;
   }

@@ -1,7 +1,7 @@
 import { captureScreenshot } from "../utils/screenshot.js";
 import { clickAt, doubleClickAt, scroll } from "./mouse.js";
 import { typeText, pressKey } from "./input.js";
-import { launchApp } from "./apps.js";
+import { launchApp, focusApp } from "./apps.js";
 import { clickElement } from "./ui.js";
 import { openUrl } from "./browser.js";
 import { setClipboard } from "./clipboard.js";
@@ -64,16 +64,39 @@ export interface BatchResult {
   error?: string;
 }
 
+function detectBrowserName(browser?: string): string {
+  if (browser?.toLowerCase().includes("chrome")) return "Google Chrome";
+  return "Safari";
+}
+
 export async function batchActions(
   actions: BatchAction[],
   delayBetweenMs: number = 100,
 ): Promise<{ result: BatchResult; screenshot: { base64: string; mimeType: string } }> {
   const results: string[] = [];
+  // Track which app was last explicitly focused so we can re-focus before keyboard actions
+  let lastFocusedApp: string | undefined;
 
   for (let i = 0; i < actions.length; i++) {
+    const action = actions[i];
+
     try {
-      const text = await executeAction(actions[i]);
+      // Before keyboard actions, ensure the correct app is focused
+      if ((action.action === "type" || action.action === "key") && lastFocusedApp) {
+        await focusApp(lastFocusedApp);
+      }
+
+      const text = await executeAction(action);
       results.push(text);
+
+      // Track app focus changes
+      if (action.action === "launch_app") {
+        lastFocusedApp = action.name;
+      } else if (action.action === "open_url") {
+        lastFocusedApp = detectBrowserName(action.browser);
+      } else if (action.action === "click_element") {
+        lastFocusedApp = action.app;
+      }
     } catch (err: unknown) {
       // Stop on first error, capture screenshot of current state
       const screenshot = await captureScreenshot();

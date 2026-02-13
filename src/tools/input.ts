@@ -1,4 +1,5 @@
 import { runAppleScript, escapeForAppleScript } from "../utils/applescript.js";
+import { focusApp } from "./apps.js";
 
 const KEY_CODES: Record<string, number> = {
   return: 36,
@@ -57,7 +58,9 @@ const MODIFIER_MAP: Record<string, string> = {
   ctrl: "control down",
 };
 
-export async function typeText(text: string): Promise<string> {
+export async function typeText(text: string, app?: string): Promise<string> {
+  if (app) await focusApp(app);
+
   // Build a single AppleScript that types all lines with Return between them.
   const lines = text.split("\n");
   const commands: string[] = [];
@@ -84,7 +87,10 @@ export async function typeText(text: string): Promise<string> {
 export async function pressKey(
   key: string,
   modifiers?: string[],
+  app?: string,
 ): Promise<string> {
+  if (app) await focusApp(app);
+
   const keyLower = key.toLowerCase();
   const keyCode = KEY_CODES[keyLower];
 

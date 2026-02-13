@@ -116,11 +116,14 @@ server.tool(
 
 server.tool(
   "type_text",
-  "Type text into the frontmost app using keyboard input. Prefer batch_actions when combining with other actions.",
-  { text: z.string().describe("Text to type") },
-  async ({ text }) => {
+  "Type text using keyboard input. If app is specified, focuses that app first to ensure keystrokes go to the right place. Without app, types into the frontmost app. Prefer batch_actions when combining with other actions.",
+  {
+    text: z.string().describe("Text to type"),
+    app: z.string().optional().describe("App to focus before typing (e.g. 'Google Chrome', 'Notes'). Recommended to avoid keystrokes going to the wrong app."),
+  },
+  async ({ text, app }) => {
     try {
-      const result = await typeText(text);
+      const result = await typeText(text, app);
       return { content: [{ type: "text", text: result }] };
     } catch (err: unknown) {
       return { isError: true, content: [{ type: "text", text: String(err) }] };
@@ -130,17 +133,18 @@ server.tool(
 
 server.tool(
   "press_key",
-  "Press a key combo (e.g. press 's' with ['command'] for Cmd+S). Supports a-z, 0-9, return, tab, space, delete, escape, arrows, f1-f12. Prefer batch_actions when combining with other actions.",
+  "Press a key combo (e.g. press 's' with ['command'] for Cmd+S). Supports a-z, 0-9, return, tab, space, delete, escape, arrows, f1-f12. If app is specified, focuses that app first. Prefer batch_actions when combining with other actions.",
   {
     key: z.string().describe("Key name: a-z, 0-9, return, tab, space, delete, escape, up/down/left/right, f1-f12"),
     modifiers: z
       .array(z.string())
       .optional()
       .describe("Modifier keys: 'command', 'shift', 'option', 'control'"),
+    app: z.string().optional().describe("App to focus before pressing key (e.g. 'Google Chrome', 'Notes')."),
   },
-  async ({ key, modifiers }) => {
+  async ({ key, modifiers, app }) => {
     try {
-      const result = await pressKey(key, modifiers);
+      const result = await pressKey(key, modifiers, app);
       return { content: [{ type: "text", text: result }] };
     } catch (err: unknown) {
       return { isError: true, content: [{ type: "text", text: String(err) }] };
