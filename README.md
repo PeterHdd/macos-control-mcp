@@ -40,6 +40,10 @@ npx -y macos-control-mcp
 
 On first run, a Python virtual environment is automatically created at `~/.macos-control-mcp/.venv` with the required Apple Vision and Quartz frameworks. This takes ~60 seconds once and persists across updates.
 
+## Video Showcasing the MCP:
+
+https://www.youtube.com/watch?v=aswlsElHV5o
+
 ## Configure Your AI Client
 
 All clients use the same command: `npx -y macos-control-mcp`
