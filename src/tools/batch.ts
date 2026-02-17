@@ -75,7 +75,8 @@ function detectBrowserName(browser?: string): string {
 export async function batchActions(
   actions: BatchAction[],
   delayBetweenMs: number = 100,
-): Promise<{ result: BatchResult; screenshot: { base64: string; mimeType: string } }> {
+  returnScreenshot: boolean = true,
+): Promise<{ result: BatchResult; screenshot?: { base64: string; mimeType: string } }> {
   const results: string[] = [];
   // Track which app was last explicitly focused so we can re-focus before keyboard actions
   let lastFocusedApp: string | undefined;
@@ -102,7 +103,7 @@ export async function batchActions(
       }
     } catch (err: unknown) {
       // Stop on first error, capture screenshot of current state
-      const screenshot = await captureScreenshot();
+      const screenshot = returnScreenshot ? await captureScreenshot() : undefined;
       return {
         result: {
           success: false,
@@ -121,9 +122,12 @@ export async function batchActions(
     }
   }
 
-  // Wait for UI to settle, then capture final screenshot
-  await new Promise((r) => setTimeout(r, 100));
-  const screenshot = await captureScreenshot();
+  let screenshot: { base64: string; mimeType: string } | undefined;
+  if (returnScreenshot) {
+    // Wait for UI to settle, then capture final screenshot
+    await new Promise((r) => setTimeout(r, 100));
+    screenshot = await captureScreenshot();
+  }
 
   return {
     result: {

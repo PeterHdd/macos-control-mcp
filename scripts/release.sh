@@ -18,7 +18,7 @@ sed -i '' "s/version: \".*\"/version: \"$VERSION\"/" src/index.ts
 npm run build
 
 # Commit, tag, push
-git add package.json src/index.ts
+git add package.json package-lock.json src/index.ts
 git commit -m "release: v$VERSION"
 git tag "v$VERSION"
 git push && git push --tags

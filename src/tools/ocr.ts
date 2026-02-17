@@ -18,7 +18,17 @@ interface OCRElement {
   confidence: number;
 }
 
-export async function screenOCR(app?: string): Promise<string> {
+interface ScreenOCROptions {
+  minConfidence?: number;
+  maxElements?: number;
+  compact?: boolean;
+  includeBounds?: boolean;
+}
+
+export async function screenOCR(
+  app?: string,
+  options: ScreenOCROptions = {},
+): Promise<string> {
   const tmpPath = `/tmp/mcp-ocr-${randomUUID()}.png`;
 
   // We need the screen/window dimensions to convert normalized coords to pixels
@@ -141,12 +151,37 @@ print(json.dumps(results))
     // Sort top-to-bottom, left-to-right
     elements.sort((a, b) => a.y === b.y ? a.x - b.x : a.y - b.y);
 
+    const minConfidence = options.minConfidence ?? 0;
+    const maxElements = options.maxElements ?? elements.length;
+    const compact = options.compact ?? false;
+    const includeBounds = options.includeBounds ?? true;
+
+    const filtered = elements
+      .filter((el) => el.confidence >= minConfidence)
+      .slice(0, Math.max(0, maxElements));
+
+    const outputElements = compact
+      ? filtered.map((el) => ({
+          text: el.text,
+          clickX: el.centerX,
+          clickY: el.centerY,
+          confidence: el.confidence,
+          ...(includeBounds ? { bounds: { x: el.x, y: el.y, width: el.width, height: el.height } } : {}),
+        }))
+      : filtered;
+
     return JSON.stringify(
       {
         app: app || "full screen",
-        elementCount: elements.length,
+        elementCount: outputElements.length,
         screenRegion: { x: offsetX, y: offsetY, width: screenWidth, height: screenHeight },
-        elements,
+        filters: {
+          minConfidence,
+          maxElements,
+          compact,
+          includeBounds,
+        },
+        elements: outputElements,
       },
       null,
       2,

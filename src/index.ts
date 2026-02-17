@@ -40,10 +40,21 @@ server.tool(
 server.tool(
   "screen_ocr",
   "OCR the screen using Apple Vision. Returns every text element with pixel coordinates (x, y, centerX, centerY). Use centerX/centerY with click_at to click on any text.",
-  { app: z.string().optional().describe("App to OCR. Omit for full screen.") },
-  async ({ app }) => {
+  {
+    app: z.string().optional().describe("App to OCR. Omit for full screen."),
+    min_confidence: z.number().min(0).max(1).optional().describe("Filter out OCR matches below this confidence (0.0-1.0)."),
+    max_elements: z.number().int().min(1).optional().describe("Max OCR elements to return (for smaller/faster responses)."),
+    compact: z.boolean().optional().describe("Return compact OCR objects (text + click coordinates + confidence)."),
+    include_bounds: z.boolean().optional().describe("Include bounding boxes in results (default true)."),
+  },
+  async ({ app, min_confidence, max_elements, compact, include_bounds }) => {
     try {
-      const result = await screenOCR(app);
+      const result = await screenOCR(app, {
+        minConfidence: min_confidence,
+        maxElements: max_elements,
+        compact,
+        includeBounds: include_bounds,
+      });
       return { content: [{ type: "text", text: result }] };
     } catch (err: unknown) {
       return { isError: true, content: [{ type: "text", text: String(err) }] };
@@ -72,19 +83,25 @@ server.tool(
 
 server.tool(
   "click_at",
-  "Click at x,y screen coordinates. Returns a screenshot after clicking. Use screenshot + screen_ocr to find coordinates first. Prefer batch_actions when combining with other actions.",
+  "Click at x,y screen coordinates. Returns a screenshot by default (disable with return_screenshot=false). Use screenshot + screen_ocr to find coordinates first. Prefer batch_actions when combining with other actions.",
   {
     x: z.number().describe("X coordinate"),
     y: z.number().describe("Y coordinate"),
+    return_screenshot: z.boolean().optional().describe("Return a screenshot after clicking (default true). Set false for faster/smaller responses."),
   },
-  async ({ x, y }) => {
+  async ({ x, y, return_screenshot }) => {
     try {
-      const { text, screenshot } = await clickAt(x, y);
+      const content: Array<{ type: "text"; text: string } | { type: "image"; data: string; mimeType: string }> = [];
+      if (return_screenshot === false) {
+        const result = await clickAt(x, y, { skipScreenshot: true });
+        content.push({ type: "text", text: result.text });
+      } else {
+        const result = await clickAt(x, y);
+        content.push({ type: "text", text: result.text });
+        content.push({ type: "image", data: result.screenshot.base64, mimeType: result.screenshot.mimeType });
+      }
       return {
-        content: [
-          { type: "text", text },
-          { type: "image", data: screenshot.base64, mimeType: screenshot.mimeType },
-        ],
+        content,
       };
     } catch (err: unknown) {
       return { isError: true, content: [{ type: "text", text: String(err) }] };
@@ -94,19 +111,25 @@ server.tool(
 
 server.tool(
   "double_click_at",
-  "Double-click at x,y screen coordinates. Returns a screenshot after clicking. Prefer batch_actions when combining with other actions.",
+  "Double-click at x,y screen coordinates. Returns a screenshot by default (disable with return_screenshot=false). Prefer batch_actions when combining with other actions.",
   {
     x: z.number().describe("X coordinate"),
     y: z.number().describe("Y coordinate"),
+    return_screenshot: z.boolean().optional().describe("Return a screenshot after double-clicking (default true). Set false for faster/smaller responses."),
   },
-  async ({ x, y }) => {
+  async ({ x, y, return_screenshot }) => {
     try {
-      const { text, screenshot } = await doubleClickAt(x, y);
+      const content: Array<{ type: "text"; text: string } | { type: "image"; data: string; mimeType: string }> = [];
+      if (return_screenshot === false) {
+        const result = await doubleClickAt(x, y, { skipScreenshot: true });
+        content.push({ type: "text", text: result.text });
+      } else {
+        const result = await doubleClickAt(x, y);
+        content.push({ type: "text", text: result.text });
+        content.push({ type: "image", data: result.screenshot.base64, mimeType: result.screenshot.mimeType });
+      }
       return {
-        content: [
-          { type: "text", text },
-          { type: "image", data: screenshot.base64, mimeType: screenshot.mimeType },
-        ],
+        content,
       };
     } catch (err: unknown) {
       return { isError: true, content: [{ type: "text", text: String(err) }] };
@@ -216,19 +239,25 @@ server.tool(
 
 server.tool(
   "click_element",
-  "Click a named UI element in an app window. Returns a screenshot after clicking. Use get_ui_elements to discover element names. Prefer batch_actions when combining with other actions.",
+  "Click a named UI element in an app window. Returns a screenshot by default (disable with return_screenshot=false). Use get_ui_elements to discover element names. Prefer batch_actions when combining with other actions.",
   {
     app: z.string().describe("Application process name"),
     name: z.string().describe("Name of the UI element to click"),
+    return_screenshot: z.boolean().optional().describe("Return a screenshot after clicking (default true). Set false for faster/smaller responses."),
   },
-  async ({ app, name }) => {
+  async ({ app, name, return_screenshot }) => {
     try {
-      const { text, screenshot } = await clickElement(app, name);
+      const content: Array<{ type: "text"; text: string } | { type: "image"; data: string; mimeType: string }> = [];
+      if (return_screenshot === false) {
+        const result = await clickElement(app, name, { skipScreenshot: true });
+        content.push({ type: "text", text: result.text });
+      } else {
+        const result = await clickElement(app, name);
+        content.push({ type: "text", text: result.text });
+        content.push({ type: "image", data: result.screenshot.base64, mimeType: result.screenshot.mimeType });
+      }
       return {
-        content: [
-          { type: "text", text },
-          { type: "image", data: screenshot.base64, mimeType: screenshot.mimeType },
-        ],
+        content,
       };
     } catch (err: unknown) {
       return { isError: true, content: [{ type: "text", text: String(err) }] };
@@ -404,22 +433,26 @@ const batchActionSchema = z.discriminatedUnion("action", [
 
 server.tool(
   "batch_actions",
-  `PREFERRED: Always use this tool instead of calling individual action tools (click_at, type_text, press_key, launch_app, etc.) one at a time. Combine multiple steps into a single batch call — this is dramatically faster. Only use individual tools when you need to read the result of one action before deciding the next. Returns a single screenshot at the end. Stops on first error. Max 20 actions per call.
+  `PREFERRED: Always use this tool instead of calling individual action tools (click_at, type_text, press_key, launch_app, etc.) one at a time. Combine multiple steps into a single batch call — this is dramatically faster. Returns a single screenshot by default (disable with return_screenshot=false). Only use individual tools when you need to read the result of one action before deciding the next. Stops on first error. Max 20 actions per call.
 
 Example — open Notes and write text (1 call instead of 6):
   [{ "action": "launch_app", "name": "Notes" }, { "action": "key", "key": "n", "modifiers": ["command"] }, { "action": "set_clipboard", "text": "Hello\\nWorld" }, { "action": "key", "key": "v", "modifiers": ["command"] }]`,
   {
     actions: z.array(batchActionSchema).min(1).max(20).describe("Array of actions to execute sequentially"),
     delay_between_ms: z.number().optional().describe("Delay between actions in ms (default 100)"),
+    return_screenshot: z.boolean().optional().describe("Return one screenshot at the end (default true). Set false for faster/smaller responses."),
   },
-  async ({ actions, delay_between_ms }) => {
+  async ({ actions, delay_between_ms, return_screenshot }) => {
     try {
-      const { result, screenshot } = await batchActions(actions, delay_between_ms);
+      const { result, screenshot } = await batchActions(actions, delay_between_ms, return_screenshot ?? true);
+      const content: Array<{ type: "text"; text: string } | { type: "image"; data: string; mimeType: string }> = [
+        { type: "text", text: JSON.stringify(result, null, 2) },
+      ];
+      if (screenshot) {
+        content.push({ type: "image", data: screenshot.base64, mimeType: screenshot.mimeType });
+      }
       return {
-        content: [
-          { type: "text", text: JSON.stringify(result, null, 2) },
-          { type: "image", data: screenshot.base64, mimeType: screenshot.mimeType },
-        ],
+        content,
       };
     } catch (err: unknown) {
       return { isError: true, content: [{ type: "text", text: String(err) }] };
