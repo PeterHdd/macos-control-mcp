@@ -1,6 +1,6 @@
 {
   "name": "macos-control-mcp",
-  "version": "0.0.11",
+  "version": "0.0.12",
   "description": "Give AI agents eyes and hands on macOS — screenshot, OCR, click, type through the Model Context Protocol",
   "type": "module",
   "license": "MIT",
